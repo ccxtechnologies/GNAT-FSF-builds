@@ -1,6 +1,13 @@
 # GNAT-FSF-builds
 Builds of the GNAT Ada compiler from FSF GCC releases
 
+## Notes on this Fork
+This fork includes updates to build cross-compiling toolchains for aarch64 targets that aren't included in the
+upstream package.
+
+Like in the upstream package, binaries of these toolchains are avaliable here as github releases. An Alire index that includes these toolchains
+can be found at [ccxtechnologies/alire-index-public](https://github.com/ccxtechnologies/alire-index-public).
+
 # How to build
 
 To start the builds you will need `python3` (up to version 3.12) and the `e3-core` package.
