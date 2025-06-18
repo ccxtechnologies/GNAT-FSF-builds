@@ -10,7 +10,7 @@ import time
 class base_gcc(spec("binary_install")):
     @property
     def version(self):
-        return "15.1.0-rc2"
+        return "15.1.0-2"
 
     @property
     def tarball(self):
