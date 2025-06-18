@@ -160,7 +160,7 @@ class FSFBuildDownloadSource(FSFBuildJob):
                         )
                     except BaseException:
                         result = None
-    
+
                     if result is None:
                         if tries < max_tries:
                             logging.warning(f"failed to download sources, retrying in {delay} seconds...")
@@ -171,9 +171,9 @@ class FSFBuildDownloadSource(FSFBuildJob):
                     else:
                         self.run_status = ReturnValue.success
                         with open(
-                            os.path.join(cache_dir, builder.filename + ".sha1"), "w"
+                            os.path.join(cache_dir, builder.name + ".sha1"), "w"
                         ) as f:
-                            f.write(hash.sha1(os.path.join(cache_dir, builder.filename)))
+                            f.write(hash.sha1(os.path.join(cache_dir, builder.name)))
                         break
 
                     time.sleep(delay if tries < max_tries else 0)
