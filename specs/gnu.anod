@@ -32,11 +32,9 @@ class GNU(spec("gh-artifact")):
         self.pre_build()
         for m in self.deps:
             self.deps[m].setenv()
-        try:
-            self["configure"]()
-        except ShellError:
-            self.add_log_file("config.log")
-            raise
+
+        self["configure"]()
+
         self["make"](jobs=self.jobs)
         # Many projects fail when running `make install` with parallel jobs
         self["make"]("install", jobs=1)
