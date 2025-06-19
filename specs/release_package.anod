@@ -136,6 +136,13 @@ class ReleasePackage(spec("common")):
                     Anod.Dependency("gdb", track=True),
                 ]
 
+            elif self.env.target.triplet == "aarch64-linux-gnu":
+                return [
+                    Anod.Dependency("linux-headers", track=True),
+                    Anod.Dependency("gcc", track=True),
+                    Anod.Dependency("gdb", track=True),
+                ]
+
             elif self.env.host.triplet == self.env.target.triplet:
                 # Native
                 return [

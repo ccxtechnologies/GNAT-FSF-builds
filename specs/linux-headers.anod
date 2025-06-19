@@ -1,0 +1,57 @@
+import os
+
+from e3.os.fs import unixpath, touch
+from e3.anod.helper import Configure, Make
+from e3.anod.spec import Anod
+from e3.anod.loader import spec
+from e3.diff import patch
+from e3.fs import cp
+
+
+class LinuxHeaders(spec("common")):
+
+    @property
+    def version(self):
+        return "6.1.141"
+
+    @property
+    def tarball(self):
+        return f"linux-{self.version}.tar.gz"
+
+    @property
+    def source_pkg_build(self):
+        return [
+                self.HTTPSSourceBuilder(
+                        name=self.tarball,
+                        url="https://cdn.kernel.org/pub/linux/kernel/v6.x/" +
+                        self.tarball,
+                )
+        ]
+
+    @property
+    def build_source_list(self):
+        return [Anod.Source(name=self.tarball, publish=True, dest="")]
+
+    @property
+    def build_deps(self):
+        return [Anod.Dependency("base_gcc", host="build", target="host")]
+
+    @Anod.primitive()
+    def build(self):
+        for dep in self.deps:
+            self.deps[dep].setenv()
+
+        make = Make(self, exec_dir=self["SRC_DIR"])
+
+        if self.env.target.cpu.name == "aarch64":
+            arch = "arm64"
+        elif self.env.target.cpu.name == "x86_64":
+            arch = "x86"
+        else:
+            arch = self.env.target.cpu.name
+
+        make.set_var("ARCH", arch)
+        make.set_var("INSTALL_HDR_PATH", unixpath(self["INSTALL_DIR"]))
+        make("headers_install", jobs=1)
+
+        self.clean()
