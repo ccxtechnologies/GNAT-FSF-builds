@@ -62,6 +62,10 @@ class GMP(spec("gnu")):
 
         configure.add("CFLAGS=-std=gnu17")  # fix for new defaults in gcc 15.1.0
 
+        # --target is unsupported for gmp builds
+        configure.add("--build=" + self.env.build.triplet)
+        configure.add("--host=" + self.env.target.triplet)
+
         make = Make(self)
 
         return {"configure": configure, "make": make}
