@@ -1,0 +1,102 @@
+import shutil
+
+from e3.os.fs import unixpath, touch
+from e3.anod.helper import Configure, Make
+from e3.anod.spec import Anod
+from e3.anod.loader import spec
+from e3.diff import patch
+from e3.fs import cp
+
+
+class Glibc(spec("gnu")):
+
+    @property
+    def version(self):
+        return "2.41"
+
+    @property
+    def tarball(self):
+        return f"glibc-{self.version}.tar.gz"
+
+    @property
+    def source_pkg_build(self):
+        return [
+                self.HTTPSSourceBuilder(
+                        name=self.tarball,
+                        url="https://ftp.gnu.org/gnu/glibc/" + self.tarball,
+                )
+        ]
+
+    @property
+    def build_source_list(self):
+        return [Anod.Source(name=self.tarball, publish=True, dest="")]
+
+    @property
+    def bootstrap(self):
+        return "bootstrap" in self.parsed_qualifier
+
+    @property
+    def build_space_name(self):
+        if self.bootstrap:
+            return f"{self.name}-bootstrap"
+        return self.name
+
+    @property
+    def build_deps(self):
+        if self.bootstrap:
+            return [
+                Anod.Dependency("binutils"),
+                Anod.Dependency("linux-headers"),
+                Anod.Dependency(
+                    "gcc", qualifier="bootstrap", host="build", target="target"
+                )
+            ]
+
+        return [
+            Anod.Dependency("gmp"),
+            Anod.Dependency("zlib"),
+            Anod.Dependency("glibc", qualifier="bootstrap"),
+            Anod.Dependency(
+                "gcc", qualifier="libgcc", host="build", target="target"
+            )
+        ]
+
+
+    @Anod.primitive()
+    def build(self):
+        self.deps["gcc"].setenv()
+
+        shutil.copytree(self.deps["linux-headers"]["INSTALL_DIR"],
+                        self["INSTALL_DIR"], dirs_exist_ok=True)
+
+        configure = Configure(self)
+
+        configure.add(
+            f"--host={self.env.target.triplet}",
+            f"--with-arch={self.env.target.cpu.name}",
+            f"--with-headers={unixpath(self["INSTALL_DIR"])}/include",
+            "--disable-multilib",
+        )
+
+        if not self.bootstrap:
+            configure.add(
+                f"--with-gmp={unixpath(self.deps["gmp"]["INSTALL_DIR"])}",
+                f"--with-zlib={unixpath(self.deps["zlib"]["INSTALL_DIR"])}",
+            )
+
+
+        configure()
+
+        make = Make(self)
+        make.set_var("install_root", self["INSTALL_DIR"])
+
+        if self.bootstrap:
+            make.set_var("install-bootstrap-headers", "yes")
+            make("install-headers")
+
+        else:
+            make.set_var("install_root", self["INSTALL_DIR"])
+            make(jobs=self.jobs)
+            make("install")
+
+        self.clean()

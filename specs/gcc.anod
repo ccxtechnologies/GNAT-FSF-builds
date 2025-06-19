@@ -49,9 +49,15 @@ class GCC(spec("gh-artifact")):
         return "bootstrap" in self.parsed_qualifier
 
     @property
+    def libgcc(self):
+        return "libgcc" in self.parsed_qualifier
+
+    @property
     def build_space_name(self):
         if self.bootstrap:
             return "%s-bootstrap" % (self.name)
+        elif self.libgcc:
+            return "%s-libgcc" % (self.name)
         else:
             return "%s" % (self.name)
 
@@ -269,6 +275,11 @@ class GCC(spec("gh-artifact")):
 
             make("all-gcc", jobs=self.jobs)
             make("install-gcc", jobs=1)
+        elif self.libgcc:
+            self.disable_out_artifact()
+
+            make("all-target-libgcc", jobs=self.jobs)
+            make("install-target-libgcc", jobs=1)
         else:
             make("all", jobs=self.jobs)
 
