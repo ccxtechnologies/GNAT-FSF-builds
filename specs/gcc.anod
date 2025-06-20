@@ -94,6 +94,9 @@ class GCC(spec("gh-artifact")):
                 Anod.Dependency("mingw", host="build", target="target", track=True)
             )
 
+        if self.libgcc:
+            deps.append(Anod.Dependency("glibc", qualifier="bootstrap"))
+
         return deps
 
     def configure_args(self):
@@ -264,6 +267,11 @@ class GCC(spec("gh-artifact")):
         if self.env.host.os.name == "windows":
             # https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=902c755930326cb4405672aa3ea13c35c653cbff
             os.environ["CPPFLAGS"] = "-DCOM_NO_WINDOWS_H"
+
+        if self.libgcc:
+            configure.add(
+                f"--with-sysroot={unixpath(self.deps["glibc"]["INSTALL_DIR"])}"
+            )
 
         configure()
 

@@ -138,7 +138,7 @@ class ReleasePackage(spec("common")):
 
             elif self.env.target.triplet == "aarch64-linux-gnu":
                 return [
-                    Anod.Dependency("linux-headers", track=True),
+                    Anod.Dependency("glibc", track=True),
                     Anod.Dependency("gcc", track=True),
                     Anod.Dependency("gdb", track=True),
                 ]

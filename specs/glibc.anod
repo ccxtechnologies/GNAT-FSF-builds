@@ -1,4 +1,5 @@
 import shutil
+import os
 
 from e3.os.fs import unixpath, touch
 from e3.anod.helper import Configure, Make
@@ -55,7 +56,6 @@ class Glibc(spec("gnu")):
         return [
             Anod.Dependency("gmp"),
             Anod.Dependency("zlib"),
-            Anod.Dependency("glibc", qualifier="bootstrap"),
             Anod.Dependency(
                 "gcc", qualifier="libgcc", host="build", target="target"
             )
@@ -67,14 +67,19 @@ class Glibc(spec("gnu")):
         self.deps["gcc"].setenv()
 
         shutil.copytree(self.deps["linux-headers"]["INSTALL_DIR"],
-                        self["INSTALL_DIR"], dirs_exist_ok=True)
+                        f"{self["INSTALL_DIR"]}/usr", dirs_exist_ok=True)
 
         configure = Configure(self)
 
         configure.add(
+            "--prefix=/usr",
             f"--host={self.env.target.triplet}",
             f"--with-arch={self.env.target.cpu.name}",
-            f"--with-headers={unixpath(self["INSTALL_DIR"])}/include",
+            f"--with-headers={unixpath(self["INSTALL_DIR"])}/usr/include",
+            "--with-float=hard",
+            "--disable-lipquadmath",
+            "--disable-libquadmath-support",
+            "--disable-libitm",
             "--disable-multilib",
         )
 
@@ -84,7 +89,6 @@ class Glibc(spec("gnu")):
                 f"--with-zlib={unixpath(self.deps["zlib"]["INSTALL_DIR"])}",
             )
 
-
         configure()
 
         make = Make(self)
@@ -93,6 +97,32 @@ class Glibc(spec("gnu")):
         if self.bootstrap:
             make.set_var("install-bootstrap-headers", "yes")
             make("install-headers")
+
+            stubs_h = f"{self["INSTALL_DIR"]}/usr/include/gnu/stubs.h"
+            with open(stubs_h, 'w', encoding="utf-8") as _:
+                pass
+
+            # make the C start-up library
+            make("csu/subdir_lib", jobs=self.jobs)
+            lib_dir = f"{self["INSTALL_DIR"]}/usr/lib"
+            os.makedirs(lib_dir, exist_ok=True)
+
+            for file in ("crt1.o", "crti.o", "crtn.o"):
+                shutil.copyfile(f"{self["BUILD_DIR"]}/csu/{file}", f"{lib_dir}/{file}")
+
+            # need to add a dummy libc.so
+            with open(f"{lib_dir}/Makefile", 'w', encoding="utf-8") as fo:
+                fo.write("""
+all:
+	$(CC) -nostdlib -nostartfiles -shared -x c /dev/null -o libc.so
+"""
+                         )
+
+            make_libc = Make(self, exec_dir=lib_dir)
+            make_libc.set_var("CC", f"{self.env.target.triplet}-gcc")
+            make_libc()
+
+            os.remove(f"{lib_dir}/Makefile")
 
         else:
             make.set_var("install_root", self["INSTALL_DIR"])
