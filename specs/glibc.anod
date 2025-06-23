@@ -6,7 +6,7 @@ from e3.anod.helper import Configure, Make
 from e3.anod.spec import Anod
 from e3.anod.loader import spec
 from e3.diff import patch
-from e3.fs import cp
+from e3.fs import cp, sync_tree
 
 
 class Glibc(spec("gnu")):
@@ -54,6 +54,8 @@ class Glibc(spec("gnu")):
             ]
 
         return [
+            Anod.Dependency("binutils"),
+            Anod.Dependency("linux-headers"),
             Anod.Dependency("gmp"),
             Anod.Dependency("zlib"),
             Anod.Dependency(
@@ -114,9 +116,8 @@ class Glibc(spec("gnu")):
             with open(f"{lib_dir}/Makefile", 'w', encoding="utf-8") as fo:
                 fo.write("""
 all:
-	$(CC) -nostdlib -nostartfiles -shared -x c /dev/null -o libc.so
-"""
-                         )
+	$(CC) -nostdlib -nostartfiles -shared -x c /dev/null -o libc.so"""
+                             )
 
             make_libc = Make(self, exec_dir=lib_dir)
             make_libc.set_var("CC", f"{self.env.target.triplet}-gcc")
@@ -125,8 +126,27 @@ all:
             os.remove(f"{lib_dir}/Makefile")
 
         else:
-            make.set_var("install_root", self["INSTALL_DIR"])
             make(jobs=self.jobs)
             make("install")
+
+
+        if not self.bootstrap:
+            sync_tree(
+                    f"{self["INSTALL_DIR"]}",
+                    f"{self.deps["binutils"]["INSTALL_DIR"]}/{self.env.target.triplet}",
+                    delete=False,
+            )
+
+            try:
+                os.symlink("libc.so.6",
+                       f"{self.deps["binutils"]["INSTALL_DIR"]}/"
+                       f"{self.env.target.triplet}/lib64/libc.so")
+            except FileExistsError:
+                pass
+
+            cp(
+                    f"{self["INSTALL_DIR"]}/usr/lib64/*.o",
+                    f"{self.deps["binutils"]["INSTALL_DIR"]}/{self.env.target.triplet}/lib64",
+            )
 
         self.clean()

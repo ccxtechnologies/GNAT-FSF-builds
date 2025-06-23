@@ -94,8 +94,11 @@ class GCC(spec("gh-artifact")):
                 Anod.Dependency("mingw", host="build", target="target", track=True)
             )
 
-        if self.libgcc:
-            deps.append(Anod.Dependency("glibc", qualifier="bootstrap"))
+        if self.env.target.os.name == "linux":
+            if self.libgcc:
+                deps.append(Anod.Dependency("glibc", qualifier="bootstrap"))
+            elif not self.bootstrap:
+                deps.append(Anod.Dependency("glibc"))
 
         return deps
 
@@ -116,6 +119,11 @@ class GCC(spec("gh-artifact")):
             # major release fail (cross compilers cannot be built with a different
             # major GCC version.)
             args.append("--enable-default-pie")
+
+            if self.libgcc:
+                args.append(
+                    f"--with-sysroot={unixpath(self.deps["glibc"]["INSTALL_DIR"])}"
+                )
 
         # Windows Native
         if self.env.target.triplet == "x86_64-w64-mingw32":
@@ -210,6 +218,29 @@ class GCC(spec("gh-artifact")):
             "lib", "gcc", self.env.target.triplet, self.version
         )
 
+        if "glibc" in self.deps and not self.libgcc:
+
+            # the linker looks for Scrt1.o using this directory so we need to
+            # make sure all of these paths exist
+            # BUILD_DIR/gcc/../lib/gcc/aarch64-linux-gnu/15.1.0/../../../../
+            #    aarch64-linux-gnu/lib/../lib64/Scrt1.o
+            target_path = os.path.join(self["BUILD_DIR"], gcc_libsubdir)
+            mkdir(os.path.join(target_path, "include"))
+            mkdir(os.path.join(f"{self["BUILD_DIR"]}/{self.env.target.triplet}", "lib"))
+
+            sync_tree(
+                    f"{self.deps["glibc"]["INSTALL_DIR"]}",
+                    f"{self["BUILD_DIR"]}/{self.env.target.triplet}",
+                    delete=False,
+            )
+            os.symlink("libc.so.6",
+                       f"{self["BUILD_DIR"]}/{self.env.target.triplet}/lib64/libc.so")
+
+            cp(
+                    f"{self.deps["glibc"]["INSTALL_DIR"]}/usr/lib64/*.o",
+                    f"{self["BUILD_DIR"]}/{self.env.target.triplet}/lib64",
+            )
+
         if self.env.target.os.name == "windows":
             # Deploy the mingw dependency in the ./mingw64 directory
             self.deps["mingw"].merge(os.path.join(self["SRC_DIR"], "mingw64"))
@@ -268,11 +299,6 @@ class GCC(spec("gh-artifact")):
             # https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=902c755930326cb4405672aa3ea13c35c653cbff
             os.environ["CPPFLAGS"] = "-DCOM_NO_WINDOWS_H"
 
-        if self.libgcc:
-            configure.add(
-                f"--with-sysroot={unixpath(self.deps["glibc"]["INSTALL_DIR"])}"
-            )
-
         configure()
 
         make = Make(self)
@@ -289,6 +315,9 @@ class GCC(spec("gh-artifact")):
             make("all-target-libgcc", jobs=self.jobs)
             make("install-target-libgcc", jobs=1)
         else:
+            make("all-target-libgcc", jobs=self.jobs)
+            make("install-target-libgcc", jobs=1)
+
             make("all", jobs=self.jobs)
 
             if self.env.is_cross:
@@ -325,3 +354,9 @@ class GCC(spec("gh-artifact")):
                 libexec,
             )
         self.clean()
+
+        if self.libgcc:
+            mkdir(f"{self.deps["binutils"]["INSTALL_DIR"]}/{self.env.target.triplet}/lib64")
+
+            cp(f"{self["INSTALL_DIR"]}/{self.env.target.triplet}/lib64/libgcc*",
+               f"{self.deps["binutils"]["INSTALL_DIR"]}/{self.env.target.triplet}/lib64")
